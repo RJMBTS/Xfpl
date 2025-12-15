@@ -1,0 +1,40 @@
+name: Xfpl Update 🎯
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'  # Runs every 12 hours
+  workflow_dispatch:        # Allows you to click "Run workflow" manually
+  push:                     # Runs immediately when you push code
+    branches:
+      - main                # Change to 'master' if your branch is named master
+
+permissions:
+  contents: write
+
+jobs:
+  update-m3u:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Filter Script
+        run: python script.py
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add *.m3u
+          # This will commit the new files. If files haven't changed, it won't crash.
+          git commit -m "Automated playlist update [skip ci]" || echo "No changes to commit"
+          git push
