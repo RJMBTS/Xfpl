@@ -1,7 +1,8 @@
-#EXTM3U
+#EXTM3U billed-msg="RJM Tv - RJMBTS Network"
 # RJMS - RJMBTS Network
 # Scripted & Updated by Kittujk
-# Last Updated: 2025-12-16 00:36:43 IST
+# Last Updated: 2025-12-16 00:43:47 IST
+#EXTM3U
 #EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/2RGcVKH22rPBN21bq4nlx8wBUD6.jpg" group-title="RJM | Movies",Akhanda 2: Thaandavam (2025) (CAM)
 https://webhop.live:443/movie/juno123/juno123/643400.mp4
 #EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/6Z37lW0JfLdeFcgH9yaTyg6B9A6.jpg" group-title="RJM | Movies",Tell Me Sof Y (2025)

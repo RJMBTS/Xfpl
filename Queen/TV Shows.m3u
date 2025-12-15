@@ -1,7 +1,8 @@
-#EXTM3U
+#EXTM3U billed-msg="RJM Tv - RJMBTS Network"
 # RJMS - RJMBTS Network
 # Scripted & Updated by Kittujk
-# Last Updated: 2025-12-16 00:36:43 IST
+# Last Updated: 2025-12-16 00:43:47 IST
+#EXTM3U
 #EXTINF:-1 tvg-logo="http://webhop.live:8080/images/f350559496f29ee7a3d432c10dc70bcc.jpg"  group-title="RJM | TV Shows",Bigg Boss Telugu S06 E106
 https://webhop.live:443/series/juno123/juno123/138573.mkv
 #EXTINF:-1 tvg-logo="http://webhop.live:8080/images/f350559496f29ee7a3d432c10dc70bcc.jpg"  group-title="RJM | TV Shows",Bigg Boss Telugu S06 E105
