@@ -2,7 +2,7 @@ name: Queen ♛
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # Daily at 09:00 AM IST (UTC 03:30)
+    - cron: '30 3 * * *'   # Daily at 09:00 AM IST
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Queen.m3u from Queen sources
+      - name: Build Queen.m3u with proper categories
         run: |
           set -e
 
@@ -30,16 +30,16 @@ jobs:
 
           echo "🔹 Building Queen.m3u at $timestamp"
 
-          # Header with RJms playlist name
+          # Header with RJMS branding (ALL CAPS)
           {
             echo '#EXTM3U name="RJMS" billed-msg="RJMS - RJMBTS Network"'
             echo "# Pushed and Updated by Kittujk"
             echo "# Scripted & Maintained by @RJMBTS"
-            echo "# Total : Movies - 0 | Web Series - 0 | TV Shows - 0"
+            echo "# Total : Movies - 0 | Web Series - 0 | TV Series - 0"
             echo "# Last updated: $timestamp"
           } > Queen.m3u
 
-          # Collect all Queen sources except live.m3u
+          # Collect Queen sources except live.m3u
           find Queen -maxdepth 1 -type f -name "*.m3u" ! -name "live.m3u" | sort > "$tmpdir/sources.txt"
 
           if [ ! -s "$tmpdir/sources.txt" ]; then
@@ -47,34 +47,41 @@ jobs:
             exit 1
           fi
 
-          i=0
+          # Normalize group-title while merging
           while read -r file; do
-            [ ! -f "$file" ] && echo "⚠️ Missing: $file" && continue
+            echo "✅ Processing $file"
 
-            i=$((i+1))
-            printf -v idx "%03d" "$i"
+            awk '
+              BEGIN{IGNORECASE=1}
+              /^#EXTINF/ {
+                line=$0
+                if (line ~ /movie/) {
+                  gsub(/group-title="[^"]*"/, "group-title=\"Movies\"", line)
+                } else if (line ~ /web/) {
+                  gsub(/group-title="[^"]*"/, "group-title=\"Web Series\"", line)
+                } else if (line ~ /tv|series/) {
+                  gsub(/group-title="[^"]*"/, "group-title=\"TV Series\"", line)
+                }
+                print line
+                next
+              }
+              !/^#EXTM3U|pushed and updated by|scripted & maintained|join telegram|^# Total/ {
+                print
+              }
+            ' "$file" >> Queen.m3u
 
-            echo "✅ Adding $file"
-
-            grep -vi -E '^#EXTM3U|pushed and updated by|scripted & maintained|join telegram|^# Total\s*:' \
-              "$file" > "$tmpdir/part_$idx.m3u" || true
+            echo "" >> Queen.m3u
           done < "$tmpdir/sources.txt"
 
-          # Merge all parts
-          for part in "$tmpdir"/part_*.m3u; do
-            echo "" >> Queen.m3u
-            cat "$part" >> Queen.m3u
-          done
+          # Category-wise counts
+          movies_count=$(grep -i 'group-title="Movies"' Queen.m3u | wc -l || true)
+          webseries_count=$(grep -i 'group-title="Web Series"' Queen.m3u | wc -l || true)
+          tvseries_count=$(grep -i 'group-title="TV Series"' Queen.m3u | wc -l || true)
 
-          # Category-wise counts using group-title
-          movies_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*movie' | wc -l || true)
-          webseries_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*web' | wc -l || true)
-          tvshows_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*tv' | wc -l || true)
+          # Update header with counts
+          sed -i "/# Total :/c\# Total : Movies - $movies_count | Web Series - $webseries_count | TV Series - $tvseries_count" Queen.m3u
 
-          # Update header with category counts
-          sed -i "/# Total :/c\# Total : Movies - $movies_count | Web Series - $webseries_count | TV Shows - $tvshows_count" Queen.m3u
-
-          echo "✅ Queen.m3u built → Movies:$movies_count | Web Series:$webseries_count | TV Shows:$tvshows_count"
+          echo "✅ Done → Movies:$movies_count | Web:$webseries_count | TV:$tvseries_count"
 
       - name: Commit and push Queen.m3u
         run: |
@@ -82,13 +89,12 @@ jobs:
           git config user.email "actions@github.com"
 
           git add Queen.m3u
-
           if git diff --cached --quiet; then
             echo "No changes detected — skipping commit."
             exit 0
           fi
 
-          git commit -m "Auto-update Queen.m3u"
+          git commit -m "Auto-update Queen.m3u (RJMS branding)"
           git push origin HEAD:main
 
       - name: Summary
