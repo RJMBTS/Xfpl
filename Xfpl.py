@@ -212,8 +212,9 @@ def save_file(filename, items_list):
     # --- CREATE HEADER ---
     lines_to_save = [
         "#EXTM3U",
-        f"# Last Updated: {timestamp}",
-        "# Powered By @tvtelugu"
+        "# RJMS - RJMBTS Network",
+        "# Scripted & Updated by Kittujk",
+        f"# Last Updated: {timestamp}"
     ]
     
     for info, url in items_list:
