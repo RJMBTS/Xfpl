@@ -2,7 +2,7 @@ name: Queen ♛
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # Runs daily at 09:00 AM IST (UTC 03:30)
+    - cron: '30 3 * * *'   # Daily at 09:00 AM IST (UTC 03:30)
   workflow_dispatch:
 
 concurrency:
@@ -30,9 +30,9 @@ jobs:
 
           echo "🔹 Building Queen.m3u at $timestamp"
 
-          # Header with category placeholders
+          # Header with RJms playlist name
           {
-            echo '#EXTM3U billed-msg="RJM Tv - RJMBTS Network"'
+            echo '#EXTM3U name="RJMS" billed-msg="RJMS - RJMBTS Network"'
             echo "# Pushed and Updated by Kittujk"
             echo "# Scripted & Maintained by @RJMBTS"
             echo "# Total : Movies - 0 | Web Series - 0 | TV Shows - 0"
@@ -66,12 +66,12 @@ jobs:
             cat "$part" >> Queen.m3u
           done
 
-          # Category-wise counts
+          # Category-wise counts using group-title
           movies_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*movie' | wc -l || true)
           webseries_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*web' | wc -l || true)
           tvshows_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*tv' | wc -l || true)
 
-          # Update header
+          # Update header with category counts
           sed -i "/# Total :/c\# Total : Movies - $movies_count | Web Series - $webseries_count | TV Shows - $tvshows_count" Queen.m3u
 
           echo "✅ Queen.m3u built → Movies:$movies_count | Web Series:$webseries_count | TV Shows:$tvshows_count"
