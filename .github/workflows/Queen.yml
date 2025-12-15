@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Queen.m3u (VOD only, auto-remove LIVE)
+      - name: Build Queen.m3u (VOD only, LIVE auto-removed)
         run: |
           set -e
 
@@ -33,18 +33,18 @@ jobs:
 
           echo "🔹 Building Queen.m3u at $timestamp"
 
-          # -------- HEADER --------
+          # ---------------- HEADER ----------------
           {
             echo '#EXTM3U name="RJMS" playlist-name="RJMS OTT" billed-msg="RJMS - RJMBTS Network"'
             echo '#EXT-X-PLAYLIST-TYPE:VOD'
-            echo "# Pushed and Updated by Kittujk"
-            echo "# Scripted & Maintained by @RJMBTS"
-            echo "# Total : Media Library - 0"
+            echo '# Pushed and Updated by Kittujk'
+            echo '# Scripted & Maintained by @RJMBTS'
+            echo '# Total : Media Library - 0'
             echo "# Last updated: $timestamp"
           } > Queen.m3u
 
-          # -------- SOURCE FILES --------
-          find Queen -maxdepth 1 -type f -name "*.m3u" ! -name "live.m3u" | sort > "$tmpdir/sources.txt"
+          # -------- COLLECT SOURCE FILES (exclude Live.m3u) --------
+          find Queen -maxdepth 1 -type f -iname "*.m3u" ! -iname "live.m3u" | sort > "$tmpdir/sources.txt"
 
           if [ ! -s "$tmpdir/sources.txt" ]; then
             echo "❌ No Queen sources found"
@@ -56,58 +56,39 @@ jobs:
             echo "✅ Processing $file"
 
             awk '
-              BEGIN {
-                IGNORECASE = 1
-                skip = 0
-              }
+              BEGIN { IGNORECASE=1; skip=0 }
 
-              # EXTINF line
               /^#EXTINF/ {
-                skip = 0
-                line = $0
+                skip=0
+                line=$0
 
                 # Detect LIVE metadata
-                if (
-                  line ~ /tvg-type="live"/ ||
-                  line ~ /catchup/ ||
-                  line ~ /timeshift/
-                ) {
-                  skip = 1
+                if (line ~ /tvg-type="live"/ || line ~ /catchup/ || line ~ /timeshift/) {
+                  skip=1
                   next
                 }
 
                 # Force VOD type
                 if (line ~ /tvg-type=/) {
-                  gsub(/tvg-type="[^"]*"/, "tvg-type=\"vod\"", line)
+                  gsub(/tvg-type="[^"]*"/,"tvg-type=\"vod\"",line)
                 } else {
-                  line = line " tvg-type=\"vod\""
+                  line=line" tvg-type=\"vod\""
                 }
 
                 print line
                 next
               }
 
-              # URL line
               /^[^#]/ {
-                if (
-                  $0 ~ /^udp:\/\// ||
-                  $0 ~ /^rtp:\/\// ||
-                  $0 ~ /^rtmp:\/\// ||
-                  $0 ~ /\.ts(\?|$)/ ||
-                  $0 ~ /live/i
-                ) {
-                  skip = 1
+                if ($0 ~ /^udp:\/\// || $0 ~ /^rtp:\/\// || $0 ~ /^rtmp:\/\// || $0 ~ /\.ts(\?|$)/ || $0 ~ /live/i) {
+                  skip=1
                 }
 
-                if (skip == 0) {
-                  print
-                }
-
-                skip = 0
+                if (skip==0) print
+                skip=0
                 next
               }
 
-              # Remove junk headers
               !/^#EXTM3U|pushed and updated by|scripted & maintained|join telegram|^# Total/ {
                 print
               }
@@ -144,5 +125,5 @@ jobs:
       - name: Summary
         run: |
           echo "👑 Queen ♛ updated successfully"
-          echo "📁 All content is VOD-only"
+          echo "📁 All content forced to VOD / Media Library"
           echo "🚫 Live streams removed automatically"
