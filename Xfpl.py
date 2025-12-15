@@ -191,7 +191,7 @@ def save_file(filename, items):
     timestamp = now_ist.strftime("%Y-%m-%d %H:%M:%S IST")
 
     content = [
-        "#EXTM3U billed-msg="RJM Tv - RJMBTS Network"",
+        '#EXTM3U billed-msg="RJM Tv - RJMBTS Network"',
         "# RJMS - RJMBTS Network",
         "# Scripted & Updated by Kittujk",
         f"# Last Updated: {timestamp}",
