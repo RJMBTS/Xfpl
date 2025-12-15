@@ -2,7 +2,7 @@ name: Queen ♛
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '30 3 * * *'   # Runs daily at 09:00 AM IST (UTC 03:30)
   workflow_dispatch:
 
 concurrency:
@@ -30,7 +30,7 @@ jobs:
 
           echo "🔹 Building Queen.m3u at $timestamp"
 
-          # Queen header with category placeholders
+          # Header with category placeholders
           {
             echo '#EXTM3U billed-msg="RJM Tv - RJMBTS Network"'
             echo "# Pushed and Updated by Kittujk"
@@ -39,10 +39,9 @@ jobs:
             echo "# Last updated: $timestamp"
           } > Queen.m3u
 
-          # Auto source list from Queen folder (exclude live.m3u)
+          # Collect all Queen sources except live.m3u
           find Queen -maxdepth 1 -type f -name "*.m3u" ! -name "live.m3u" | sort > "$tmpdir/sources.txt"
 
-          # Safety check
           if [ ! -s "$tmpdir/sources.txt" ]; then
             echo "❌ No Queen sources found (excluding live.m3u)"
             exit 1
@@ -61,18 +60,18 @@ jobs:
               "$file" > "$tmpdir/part_$idx.m3u" || true
           done < "$tmpdir/sources.txt"
 
-          # Combine parts
+          # Merge all parts
           for part in "$tmpdir"/part_*.m3u; do
             echo "" >> Queen.m3u
             cat "$part" >> Queen.m3u
           done
 
-          # Category-wise count using group-title
+          # Category-wise counts
           movies_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*movie' | wc -l || true)
           webseries_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*web' | wc -l || true)
           tvshows_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*tv' | wc -l || true)
 
-          # Update header with category counts
+          # Update header
           sed -i "/# Total :/c\# Total : Movies - $movies_count | Web Series - $webseries_count | TV Shows - $tvshows_count" Queen.m3u
 
           echo "✅ Queen.m3u built → Movies:$movies_count | Web Series:$webseries_count | TV Shows:$tvshows_count"
@@ -81,16 +80,16 @@ jobs:
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
+
           git add Queen.m3u
 
-          if ! git diff --cached --quiet; then
-            git fetch origin
-            git rebase origin/main || git rebase --abort
-            git commit -m "Auto-update Queen.m3u"
-            git push origin main
-          else
+          if git diff --cached --quiet; then
             echo "No changes detected — skipping commit."
+            exit 0
           fi
+
+          git commit -m "Auto-update Queen.m3u"
+          git push origin HEAD:main
 
       - name: Summary
         run: |
