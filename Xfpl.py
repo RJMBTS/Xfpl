@@ -1,4 +1,5 @@
 import requests
+import os
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -24,7 +25,7 @@ def filter_and_split_playlist(url, file_live, file_series, file_movies, file_tvs
     # Dictionary Key: (Show Name, Season Number) | Value: List of items
     season_grouping = defaultdict(list)
     
-    DEFAULT_LOGO = "https://tvtelugu.github.io/images/tvtelugu.png"
+    DEFAULT_LOGO = "https://simgbb.com/avatar/dw9KLnpdGh3y.jpg"
     
     for i in range(len(lines)):
         line = lines[i]
@@ -193,6 +194,10 @@ def filter_and_split_playlist(url, file_live, file_series, file_movies, file_tvs
         else:
             series_list_save.extend(formatted_episodes)
 
+    # --- OUTPUT FOLDER ---
+    OUTPUT_DIR = "Queen"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     # --- SAVING ---
     save_file(file_live, live_items)
     save_file(file_movies, movie_list_save)
@@ -239,10 +244,10 @@ PASSWORD = "juno123"
 
 m3u_url = f"{HOST_URL}/get.php?username={USERNAME}&password={PASSWORD}&type=m3u_plus&output=ts"
 
-output_live = "Live.m3u"
-output_movies = "Movies.m3u"
-output_series = "Web Series.m3u"
-output_tvshows = "TV Shows.m3u"
+output_live = "Queen/Live.m3u"
+output_movies = "Queen/Movies.m3u"
+output_series = "Queen/Web Series.m3u"
+output_tvshows = "Queen/TV Shows.m3u"
 
 if __name__ == "__main__":
     filter_and_split_playlist(m3u_url, output_live, output_series, output_movies, output_tvshows)
