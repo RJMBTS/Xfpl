@@ -191,10 +191,11 @@ def save_file(filename, items):
     timestamp = now_ist.strftime("%Y-%m-%d %H:%M:%S IST")
 
     content = [
-        "#EXTM3U",
+        "#EXTM3U billed-msg="RJM Tv - RJMBTS Network"",
         "# RJMS - RJMBTS Network",
         "# Scripted & Updated by Kittujk",
-        f"# Last Updated: {timestamp}"
+        f"# Last Updated: {timestamp}",
+        "#EXTM3U",
     ]
 
     for info, url in items:
