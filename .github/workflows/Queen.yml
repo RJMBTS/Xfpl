@@ -21,67 +21,111 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Queen.m3u with proper categories
+      - name: Build Queen.m3u (VOD only, auto-remove LIVE)
         run: |
           set -e
+
+          # Safety check
+          [ -d Queen ] || { echo "❌ Queen folder not found"; exit 1; }
 
           timestamp=$(TZ="Asia/Kolkata" date +"%Y-%m-%d %H:%M:%S %Z")
           tmpdir=$(mktemp -d)
 
           echo "🔹 Building Queen.m3u at $timestamp"
 
-          # Header with RJMS branding (ALL CAPS)
+          # -------- HEADER --------
           {
             echo '#EXTM3U name="RJMS" playlist-name="RJMS OTT" billed-msg="RJMS - RJMBTS Network"'
+            echo '#EXT-X-PLAYLIST-TYPE:VOD'
             echo "# Pushed and Updated by Kittujk"
             echo "# Scripted & Maintained by @RJMBTS"
-            echo "# Total : Movies - 0 | Web Series - 0 | TV Series - 0"
+            echo "# Total : Media Library - 0"
             echo "# Last updated: $timestamp"
           } > Queen.m3u
 
-          # Collect Queen sources except live.m3u
+          # -------- SOURCE FILES --------
           find Queen -maxdepth 1 -type f -name "*.m3u" ! -name "live.m3u" | sort > "$tmpdir/sources.txt"
 
           if [ ! -s "$tmpdir/sources.txt" ]; then
-            echo "❌ No Queen sources found (excluding live.m3u)"
+            echo "❌ No Queen sources found"
             exit 1
           fi
 
-          # Normalize group-title while merging
+          # -------- MERGE + FILTER (VOD ONLY) --------
           while read -r file; do
             echo "✅ Processing $file"
 
             awk '
-              BEGIN{IGNORECASE=1}
+              BEGIN {
+                IGNORECASE = 1
+                skip = 0
+              }
+
+              # EXTINF line
               /^#EXTINF/ {
-                line=$0
-                if (line ~ /movie/) {
-                  gsub(/group-title="[^"]*"/, "group-title=\"Movies\"", line)
-                } else if (line ~ /web/) {
-                  gsub(/group-title="[^"]*"/, "group-title=\"Web Series\"", line)
-                } else if (line ~ /tv|series/) {
-                  gsub(/group-title="[^"]*"/, "group-title=\"TV Series\"", line)
+                skip = 0
+                line = $0
+
+                # Detect LIVE metadata
+                if (
+                  line ~ /tvg-type="live"/ ||
+                  line ~ /catchup/ ||
+                  line ~ /timeshift/
+                ) {
+                  skip = 1
+                  next
                 }
+
+                # Force VOD type
+                if (line ~ /tvg-type=/) {
+                  gsub(/tvg-type="[^"]*"/, "tvg-type=\"vod\"", line)
+                } else {
+                  line = line " tvg-type=\"vod\""
+                }
+
                 print line
                 next
               }
+
+              # URL line
+              /^[^#]/ {
+                if (
+                  $0 ~ /^udp:\/\// ||
+                  $0 ~ /^rtp:\/\// ||
+                  $0 ~ /^rtmp:\/\// ||
+                  $0 ~ /\.ts(\?|$)/ ||
+                  $0 ~ /live/i
+                ) {
+                  skip = 1
+                }
+
+                if (skip == 0) {
+                  print
+                }
+
+                skip = 0
+                next
+              }
+
+              # Remove junk headers
               !/^#EXTM3U|pushed and updated by|scripted & maintained|join telegram|^# Total/ {
                 print
               }
             ' "$file" >> Queen.m3u
 
-            echo "" >> Queen.m3u
+            printf "\n" >> Queen.m3u
           done < "$tmpdir/sources.txt"
 
-          # Category-wise counts
-          movies_count=$(grep -i 'group-title="Movies"' Queen.m3u | wc -l || true)
-          webseries_count=$(grep -i 'group-title="Web Series"' Queen.m3u | wc -l || true)
-          tvseries_count=$(grep -i 'group-title="TV Series"' Queen.m3u | wc -l || true)
+          # -------- FINAL SANITATION --------
+          sed -i '/udp:\/\//d;/rtp:\/\//d;/rtmp:\/\//d;/\.ts/d' Queen.m3u
 
-          # Update header with counts
-          sed -i "/# Total :/c\# Total : Movies - $movies_count | Web Series - $webseries_count | TV Series - $tvseries_count" Queen.m3u
+          # -------- TOTAL COUNT --------
+          total_count=$(grep -c '^#EXTINF' Queen.m3u || true)
 
-          echo "✅ Done → Movies:$movies_count | Web:$webseries_count | TV:$tvseries_count"
+          sed -i '/^# Total :/d' Queen.m3u
+          sed -i "5i # Total : Media Library - $total_count" Queen.m3u
+
+          echo "✅ Done → Total VOD items: $total_count"
 
       - name: Commit and push Queen.m3u
         run: |
@@ -94,9 +138,11 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Auto-update Queen.m3u (RJMS branding)"
+          git commit -m "Auto-update Queen.m3u (VOD only, RJMS)"
           git push origin HEAD:main
 
       - name: Summary
         run: |
-          echo "✅ Queen ♛ updated successfully"
+          echo "👑 Queen ♛ updated successfully"
+          echo "📁 All content is VOD-only"
+          echo "🚫 Live streams removed automatically"
