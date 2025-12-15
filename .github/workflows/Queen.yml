@@ -32,7 +32,7 @@ jobs:
 
           # Header with RJMS branding (ALL CAPS)
           {
-            echo '#EXTM3U name="RJMS" billed-msg="RJMS - RJMBTS Network"'
+            echo '#EXTM3U name="RJMS" playlist-name="RJMS OTT" billed-msg="RJMS - RJMBTS Network"'
             echo "# Pushed and Updated by Kittujk"
             echo "# Scripted & Maintained by @RJMBTS"
             echo "# Total : Movies - 0 | Web Series - 0 | TV Series - 0"
