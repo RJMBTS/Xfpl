@@ -1,0 +1,97 @@
+name: Queen ♛
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: queen-m3u
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Queen.m3u from Queen sources
+        run: |
+          set -e
+
+          timestamp=$(TZ="Asia/Kolkata" date +"%Y-%m-%d %H:%M:%S %Z")
+          tmpdir=$(mktemp -d)
+
+          echo "🔹 Building Queen.m3u at $timestamp"
+
+          # Queen header with category placeholders
+          {
+            echo '#EXTM3U billed-msg="RJM Tv - RJMBTS Network"'
+            echo "# Pushed and Updated by Kittujk"
+            echo "# Scripted & Maintained by @RJMBTS"
+            echo "# Total : Movies - 0 | Web Series - 0 | TV Shows - 0"
+            echo "# Last updated: $timestamp"
+          } > Queen.m3u
+
+          # Auto source list from Queen folder (exclude live.m3u)
+          find Queen -maxdepth 1 -type f -name "*.m3u" ! -name "live.m3u" | sort > "$tmpdir/sources.txt"
+
+          # Safety check
+          if [ ! -s "$tmpdir/sources.txt" ]; then
+            echo "❌ No Queen sources found (excluding live.m3u)"
+            exit 1
+          fi
+
+          i=0
+          while read -r file; do
+            [ ! -f "$file" ] && echo "⚠️ Missing: $file" && continue
+
+            i=$((i+1))
+            printf -v idx "%03d" "$i"
+
+            echo "✅ Adding $file"
+
+            grep -vi -E '^#EXTM3U|pushed and updated by|scripted & maintained|join telegram|^# Total\s*:' \
+              "$file" > "$tmpdir/part_$idx.m3u" || true
+          done < "$tmpdir/sources.txt"
+
+          # Combine parts
+          for part in "$tmpdir"/part_*.m3u; do
+            echo "" >> Queen.m3u
+            cat "$part" >> Queen.m3u
+          done
+
+          # Category-wise count using group-title
+          movies_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*movie' | wc -l || true)
+          webseries_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*web' | wc -l || true)
+          tvshows_count=$(grep -i '^#EXTINF' Queen.m3u | grep -i 'group-title=".*tv' | wc -l || true)
+
+          # Update header with category counts
+          sed -i "/# Total :/c\# Total : Movies - $movies_count | Web Series - $webseries_count | TV Shows - $tvshows_count" Queen.m3u
+
+          echo "✅ Queen.m3u built → Movies:$movies_count | Web Series:$webseries_count | TV Shows:$tvshows_count"
+
+      - name: Commit and push Queen.m3u
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add Queen.m3u
+
+          if ! git diff --cached --quiet; then
+            git fetch origin
+            git rebase origin/main || git rebase --abort
+            git commit -m "Auto-update Queen.m3u"
+            git push origin main
+          else
+            echo "No changes detected — skipping commit."
+          fi
+
+      - name: Summary
+        run: |
+          echo "✅ Queen ♛ updated successfully"
