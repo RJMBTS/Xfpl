@@ -195,6 +195,7 @@ def save_file(filename, items):
         "# RJMS - RJMBTS Network",
         "# Scripted & Updated by Kittujk",
         f"# Last Updated: {timestamp}",
+        "",
         "#EXTM3U",
     ]
 
