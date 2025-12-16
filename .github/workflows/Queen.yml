@@ -56,10 +56,11 @@ jobs:
             echo "✅ Processing $file"
 
             awk '
-              BEGIN { IGNORECASE=1; skip=0 }
+              BEGIN { IGNORECASE=1; skip=0; is_vod=0 }
 
               /^#EXTINF/ {
                 skip=0
+                is_vod=0
                 line=$0
 
                 # Detect LIVE metadata
@@ -75,12 +76,19 @@ jobs:
                   line=line" tvg-type=\"vod\""
                 }
 
+                is_vod=1
                 print line
                 next
               }
 
               /^[^#]/ {
-                if ($0 ~ /^udp:\/\// || $0 ~ /^rtp:\/\// || $0 ~ /^rtmp:\/\// || $0 ~ /\.ts(\?|$)/ || $0 ~ /live/i) {
+                # Remove only true LIVE protocols
+                if ($0 ~ /^udp:\/\// || $0 ~ /^rtp:\/\// || $0 ~ /^rtmp:\/\//) {
+                  skip=1
+                }
+
+                # Allow .ts ONLY if this item is VOD
+                if ($0 ~ /\.ts(\?|$)/ && is_vod==0) {
                   skip=1
                 }
 
@@ -97,8 +105,8 @@ jobs:
             printf "\n" >> Queen.m3u
           done < "$tmpdir/sources.txt"
 
-          # -------- FINAL SANITATION --------
-          sed -i '/udp:\/\//d;/rtp:\/\//d;/rtmp:\/\//d;/\.ts/d' Queen.m3u
+          # -------- FINAL SANITATION (LOGIC SAFE) --------
+          sed -i '/^udp:\/\//d;/^rtp:\/\//d;/^rtmp:\/\//d' Queen.m3u
 
           # -------- TOTAL COUNT --------
           total_count=$(grep -c '^#EXTINF' Queen.m3u || true)
