@@ -2,7 +2,7 @@ name: Queen ♛
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # Daily at 09:00 AM IST
+    - cron: '0 */4 * * *'   # Runs every 4 hours
   workflow_dispatch:
 
 concurrency:
