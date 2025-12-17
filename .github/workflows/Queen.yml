@@ -25,7 +25,7 @@ jobs:
         run: |
           set -e
 
-          # Safety check
+          # -------- SAFETY CHECK --------
           [ -d Queen ] || { echo "❌ Queen folder not found"; exit 1; }
 
           timestamp=$(TZ="Asia/Kolkata" date +"%Y-%m-%d %H:%M:%S %Z")
@@ -33,17 +33,16 @@ jobs:
 
           echo "🔹 Building Queen.m3u at $timestamp"
 
-          # ---------------- HEADER ----------------
+          # -------- HEADER --------
           {
             echo '#EXTM3U name="RJMS" playlist-name="RJMS OTT" billed-msg="RJMS - RJMBTS Network"'
             echo '#EXT-X-PLAYLIST-TYPE:VOD'
             echo '# Pushed and Updated by Kittujk'
             echo '# Scripted & Maintained by @RJMBTS'
-            echo '# Total : Media Library - 0'
             echo "# Last updated: $timestamp"
           } > Queen.m3u
 
-          # -------- COLLECT SOURCE FILES (exclude Live.m3u) --------
+          # -------- COLLECT SOURCES (exclude Live.m3u) --------
           find Queen -maxdepth 1 -type f -iname "*.m3u" ! -iname "live.m3u" | sort > "$tmpdir/sources.txt"
 
           if [ ! -s "$tmpdir/sources.txt" ]; then
@@ -56,63 +55,80 @@ jobs:
             echo "✅ Processing $file"
 
             awk '
-              BEGIN { IGNORECASE=1; skip=0; is_vod=0 }
+            BEGIN {
+              IGNORECASE=1
+              skip=0
+              is_vod=0
+            }
 
-              /^#EXTINF/ {
-                skip=0
-                is_vod=0
-                line=$0
+            # ---------------- EXTINF ----------------
+            /^#EXTINF/ {
+              skip=0
+              is_vod=0
+              line=$0
 
-                # Detect LIVE metadata
-                if (line ~ /tvg-type="live"/ || line ~ /catchup/ || line ~ /timeshift/) {
-                  skip=1
-                  next
-                }
-
-                # Force VOD type
-                if (line ~ /tvg-type=/) {
-                  gsub(/tvg-type="[^"]*"/,"tvg-type=\"vod\"",line)
-                } else {
-                  line=line" tvg-type=\"vod\""
-                }
-
-                is_vod=1
-                print line
+              # Detect LIVE metadata
+              if (line ~ /tvg-type="live"/ || line ~ /catchup/ || line ~ /timeshift/) {
+                skip=1
                 next
               }
 
-              /^[^#]/ {
-                # Remove only true LIVE protocols
-                if ($0 ~ /^udp:\/\// || $0 ~ /^rtp:\/\// || $0 ~ /^rtmp:\/\//) {
-                  skip=1
-                }
-
-                # Allow .ts ONLY if this item is VOD
-                if ($0 ~ /\.ts(\?|$)/ && is_vod==0) {
-                  skip=1
-                }
-
-                if (skip==0) print
-                skip=0
-                next
+              # Force tvg-type="vod" BEFORE comma
+              if (line ~ /tvg-type=/) {
+                gsub(/tvg-type="[^"]*"/, "tvg-type=\"vod\"", line)
+              } else if (line ~ /,/) {
+                sub(/,/, " tvg-type=\"vod\",", line)
+              } else {
+                line = line " tvg-type=\"vod\""
               }
 
-              !/^#EXTM3U|pushed and updated by|scripted & maintained|join telegram|^# Total/ {
-                print
+              is_vod=1
+              print line
+              next
+            }
+
+            # ---------------- STREAM URL ----------------
+            /^[^#]/ {
+              # Remove true LIVE protocols
+              if ($0 ~ /^udp:\/\// || $0 ~ /^rtp:\/\// || $0 ~ /^rtmp:\/\//) {
+                skip=1
               }
+
+              # Block .ts unless explicitly VOD
+              if ($0 ~ /\.ts(\?|$)/ && is_vod==0) {
+                skip=1
+              }
+
+              # Extra safety: block .m3u8 if not VOD
+              if ($0 ~ /\.m3u8(\?|$)/ && is_vod==0) {
+                skip=1
+              }
+
+              if (skip==0) print
+              skip=0
+              next
+            }
+
+            # ---------------- CLEAN META ----------------
+            !/^#EXTM3U|pushed and updated by|scripted & maintained|join telegram|^# Total/ {
+              print
+            }
             ' "$file" >> Queen.m3u
 
             printf "\n" >> Queen.m3u
           done < "$tmpdir/sources.txt"
 
-          # -------- FINAL SANITATION (LOGIC SAFE) --------
+          # -------- FINAL SANITATION --------
           sed -i '/^udp:\/\//d;/^rtp:\/\//d;/^rtmp:\/\//d' Queen.m3u
 
           # -------- TOTAL COUNT --------
           total_count=$(grep -c '^#EXTINF' Queen.m3u || true)
 
           sed -i '/^# Total :/d' Queen.m3u
-          sed -i "5i # Total : Media Library - $total_count" Queen.m3u
+          sed -i "/^# Scripted & Maintained/a # Total : Media Library - $total_count" Queen.m3u
+
+          # -------- CLEANUP --------
+          rm -rf "$tmpdir"
 
           echo "✅ Done → Total VOD items: $total_count"
 
