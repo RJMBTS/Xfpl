@@ -2,7 +2,7 @@ name: Queen ♛
 
 on:
   schedule:
-    - cron: '0 */4 * * *'   # Runs every 4 hours
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Queen.m3u (VOD only, LIVE auto-removed)
+      - name: Build Queen.m3u (VOD only, source sanitized)
         run: |
           set -e
 
@@ -42,7 +42,7 @@ jobs:
             echo "# Last updated: $timestamp"
           } > Queen.m3u
 
-          # -------- COLLECT SOURCES (exclude Live.m3u) --------
+          # -------- COLLECT SOURCES --------
           find Queen -maxdepth 1 -type f -iname "*.m3u" ! -iname "live.m3u" | sort > "$tmpdir/sources.txt"
 
           if [ ! -s "$tmpdir/sources.txt" ]; then
@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
 
-          # -------- MERGE + FILTER (VOD ONLY) --------
+          # -------- MERGE + SANITIZE --------
           while read -r file; do
             echo "✅ Processing $file"
 
@@ -61,19 +61,31 @@ jobs:
               is_vod=0
             }
 
+            # -------- DROP ORPHAN TITLE LINES --------
+            /^[^#].*tvg-type=/ {
+              next
+            }
+
             # ---------------- EXTINF ----------------
             /^#EXTINF/ {
               skip=0
               is_vod=0
               line=$0
 
-              # Detect LIVE metadata
+              # Remove LIVE / catchup / timeshift
               if (line ~ /tvg-type="live"/ || line ~ /catchup/ || line ~ /timeshift/) {
                 skip=1
                 next
               }
 
-              # Force tvg-type="vod" BEFORE comma
+              # ---- FIX misplaced tvg-type after comma ----
+              if (line ~ /,.*tvg-type="/) {
+                match(line, /tvg-type="[^"]*"/, t)
+                gsub(/ t?v?g?-?type="[^"]*"/, "", line)
+                sub(/,/, " " t[0] ",", line)
+              }
+
+              # ---- FORCE tvg-type="vod" BEFORE comma ----
               if (line ~ /tvg-type=/) {
                 gsub(/tvg-type="[^"]*"/, "tvg-type=\"vod\"", line)
               } else if (line ~ /,/) {
@@ -89,17 +101,17 @@ jobs:
 
             # ---------------- STREAM URL ----------------
             /^[^#]/ {
-              # Remove true LIVE protocols
+              # Kill LIVE protocols
               if ($0 ~ /^udp:\/\// || $0 ~ /^rtp:\/\// || $0 ~ /^rtmp:\/\//) {
                 skip=1
               }
 
-              # Block .ts unless explicitly VOD
+              # Block .ts unless VOD
               if ($0 ~ /\.ts(\?|$)/ && is_vod==0) {
                 skip=1
               }
 
-              # Extra safety: block .m3u8 if not VOD
+              # Block .m3u8 unless VOD
               if ($0 ~ /\.m3u8(\?|$)/ && is_vod==0) {
                 skip=1
               }
@@ -127,7 +139,6 @@ jobs:
           sed -i '/^# Total :/d' Queen.m3u
           sed -i "/^# Scripted & Maintained/a # Total : Media Library - $total_count" Queen.m3u
 
-          # -------- CLEANUP --------
           rm -rf "$tmpdir"
 
           echo "✅ Done → Total VOD items: $total_count"
@@ -143,11 +154,11 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Auto-update Queen.m3u (VOD only, RJMS)"
+          git commit -m "Auto-update Queen.m3u (VOD only, sanitized)"
           git push origin HEAD:main
 
       - name: Summary
         run: |
           echo "👑 Queen ♛ updated successfully"
-          echo "📁 All content forced to VOD / Media Library"
-          echo "🚫 Live streams removed automatically"
+          echo "📁 VOD-only playlist (clean metadata)"
+          echo "🚫 Live / broken entries removed"
