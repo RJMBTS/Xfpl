@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Queen.m3u (VOD + Recently Added FIXED)
+      - name: Build Queen.m3u (VOD + Recently Added – FINAL)
         run: |
           set -e
 
@@ -36,7 +36,7 @@ jobs:
 
           # ---------- HEADER ----------
           {
-            echo '#EXTM3U name="Queen" playlist-name="Queen VOD" billed-msg="RJMS - RJMBTS Network"'
+            echo '#EXTM3U name="RJMS" playlist-name="RJMS OTT" billed-msg="RJMS - RJMBTS Network"'
             echo '#EXT-X-PLAYLIST-TYPE:VOD'
             echo '# Pushed and Updated by Kittujk'
             echo '# Scripted & Maintained by @RJMBTS'
@@ -52,46 +52,51 @@ jobs:
           > "$merged_raw"
           > "$recent_raw"
 
-          # ---------- MERGE + SANITIZE ----------
+          # ---------- MERGE + SANITIZE + AUTOFIX ----------
           while read -r file; do
             echo "✅ Processing $file"
             ts=$(git log -1 --format="%ct" -- "$file" 2>/dev/null || stat -c %Y "$file")
 
             awk -v TS="$ts" '
-            BEGIN { IGNORECASE=1; skip=0; is_vod=0 }
+            BEGIN { IGNORECASE=1 }
 
-            /^[^#].*tvg-type=/ { next }
-
+            # ===== EXTINF PRESENT =====
             /^#EXTINF/ {
-              skip=0; is_vod=0
               line=$0
-
-              if (line ~ /tvg-type="live"|catchup|timeshift/) { skip=1; next }
-
-              if (line ~ /,.*tvg-type="/) {
-                match(line, /tvg-type="[^"]*"/, t)
-                gsub(/ t?v?g?-?type="[^"]*"/, "", line)
-                sub(/,/, " " t[0] ",", line)
-              }
+              getline url
+              if (url ~ /^#/ || url == "") next
 
               if (line ~ /tvg-type=/)
                 gsub(/tvg-type="[^"]*"/, "tvg-type=\"vod\"", line)
               else
                 sub(/,/, " tvg-type=\"vod\",", line)
 
-              ext=line
-              getline url
-              if (url ~ /^#/ || url == "") next
-
               if (url ~ /^(udp|rtp|rtmp):\/\//) next
-              if ((url ~ /\.ts(\?|$)/ || url ~ /\.m3u8(\?|$)/) && is_vod==0) next
+
+              print line >> "'"$merged_raw"'"
+              print url >> "'"$merged_raw"'"
+              print "" >> "'"$merged_raw"'"
+
+              printf "%s|%s\n%s\n===END===\n", TS, line, url >> "'"$recent_raw"'"
+              next
+            }
+
+            # ===== URL WITHOUT EXTINF (AUTO-METADATA) =====
+            /^https?:\/\// {
+              url=$0
+              if (url ~ /^(udp|rtp|rtmp):\/\//) next
+
+              name=url
+              sub(/^.*\//, "", name)
+              sub(/\.[^.]+$/, "", name)
+
+              ext="#EXTINF:-1 tvg-type=\"vod\"," name
 
               print ext >> "'"$merged_raw"'"
               print url >> "'"$merged_raw"'"
               print "" >> "'"$merged_raw"'"
 
               printf "%s|%s\n%s\n===END===\n", TS, ext, url >> "'"$recent_raw"'"
-              next
             }
             ' "$file"
 
@@ -100,16 +105,20 @@ jobs:
           # ---------- RECENTLY ADDED (BLOCK SAFE) ----------
           recent_final="$tmpdir/recent_final.txt"
 
-          sort -nr "$recent_raw" \
-          | awk -F'|' '
-            /^[0-9]+\|/ {
-              sub(/^[0-9]+\|/, "")
-              print
-              getline
-              print
-              print ""
-            }
-          ' | head -n $((RECENT_COUNT*3)) > "$recent_final"
+          awk '
+          BEGIN { RS="===END===\n"; FS="\n" }
+          {
+            split($1, a, "|")
+            ts=a[1]
+            sub(/^[0-9]+\|/, "", $1)
+            print ts "|" $0
+          }
+          ' "$recent_raw" \
+          | sort -nr \
+          | head -n "$RECENT_COUNT" \
+          | sed 's/^[0-9]\+|//' \
+          | sed '/^$/d' \
+          > "$recent_final"
 
           # ---------- BUILD FINAL PLAYLIST ----------
           {
@@ -144,11 +153,11 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Auto-update Queen.m3u (VOD + Recently Added fixed)"
+          git commit -m "Auto-update Queen.m3u (VOD + Recently Added final fix)"
           git push origin HEAD:main
 
       - name: Summary
         run: |
           echo "👑 Queen ♛ updated successfully"
-          echo "🆕 Recently Added shows full metadata"
+          echo "🆕 Recently Added now has metadata"
           echo "🎬 VOD-only, sanitized playlist"
