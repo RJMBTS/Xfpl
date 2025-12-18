@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Queen.m3u (VOD + Recently Added – FINAL)
+      - name: Build Queen.m3u (VOD + Recently Added – FINAL STABLE)
         run: |
           set -e
 
@@ -52,7 +52,7 @@ jobs:
           > "$merged_raw"
           > "$recent_raw"
 
-          # ---------- MERGE + SANITIZE + AUTOFIX ----------
+          # ---------- MERGE + SANITIZE + AUTO METADATA ----------
           while read -r file; do
             echo "✅ Processing $file"
             ts=$(git log -1 --format="%ct" -- "$file" 2>/dev/null || stat -c %Y "$file")
@@ -60,17 +60,13 @@ jobs:
             awk -v TS="$ts" '
             BEGIN { IGNORECASE=1 }
 
-            # ===== EXTINF PRESENT =====
+            # ----- EXTINF PRESENT -----
             /^#EXTINF/ {
               line=$0
               getline url
               if (url ~ /^#/ || url == "") next
-
-              if (line ~ /tvg-type=/)
-                gsub(/tvg-type="[^"]*"/, "tvg-type=\"vod\"", line)
-              else
-                sub(/,/, " tvg-type=\"vod\",", line)
-
+              gsub(/tvg-type="[^"]*"/, "tvg-type=\"vod\"", line)
+              if (line !~ /tvg-type=/) sub(/,/, " tvg-type=\"vod\",", line)
               if (url ~ /^(udp|rtp|rtmp):\/\//) next
 
               print line >> "'"$merged_raw"'"
@@ -81,11 +77,10 @@ jobs:
               next
             }
 
-            # ===== URL WITHOUT EXTINF (AUTO-METADATA) =====
+            # ----- URL WITHOUT EXTINF -----
             /^https?:\/\// {
               url=$0
               if (url ~ /^(udp|rtp|rtmp):\/\//) next
-
               name=url
               sub(/^.*\//, "", name)
               sub(/\.[^.]+$/, "", name)
@@ -99,7 +94,6 @@ jobs:
               printf "%s|%s\n%s\n===END===\n", TS, ext, url >> "'"$recent_raw"'"
             }
             ' "$file"
-
           done < "$tmpdir/sources.txt"
 
           # ---------- RECENTLY ADDED (BLOCK SAFE) ----------
@@ -131,9 +125,16 @@ jobs:
 
           mv "$tmpdir/final.m3u" Queen.m3u
 
-          # ---------- FINAL CLEAN ----------
-          awk '!seen[$0]++' Queen.m3u > "$tmpdir/dedup.m3u"
-          mv "$tmpdir/dedup.m3u" Queen.m3u
+          # ---------- SAFE DEDUP (DO NOT TOUCH RECENT) ----------
+          awk '
+          BEGIN { in_recent=0 }
+          /^# ===== RECENTLY ADDED =====/ { in_recent=1 }
+          in_recent && /^# ===== FULL LIBRARY =====/ { in_recent=0 }
+          in_recent { print; next }
+          !seen[$0]++ { print }
+          ' Queen.m3u > "$tmpdir/clean.m3u"
+
+          mv "$tmpdir/clean.m3u" Queen.m3u
 
           total=$(grep -c '^#EXTINF' Queen.m3u || true)
           sed -i '/^# Total :/d' Queen.m3u
@@ -153,11 +154,11 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Auto-update Queen.m3u (VOD + Recently Added final fix)"
+          git commit -m "Auto-update Queen.m3u (VOD + Recently Added stable)"
           git push origin HEAD:main
 
       - name: Summary
         run: |
           echo "👑 Queen ♛ updated successfully"
-          echo "🆕 Recently Added now has metadata"
-          echo "🎬 VOD-only, sanitized playlist"
+          echo "🆕 Recently Added block visible"
+          echo "🎬 Full metadata, VOD-only"
